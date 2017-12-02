@@ -7,16 +7,9 @@ import sys
 import numpy as np
 import pandas as pd
 
-from logging.handlers import RotatingFileHandler
 from sklearn.feature_extraction.text import CountVectorizer, TfidfTransformer
 from stat_parser import Parser
 
-# set up some simple logging
-handlers = [RotatingFileHandler("bot.log", maxBytes=1E7),
-            logging.StreamHandler()]
-logging.basicConfig(level=logging.INFO,
-                    format='%(asctime)s %(message)s',
-                    handlers=handlers)
 LOGGER = logging.getLogger(__name__)
 
 # the sqlite database contains w2v encodings and emoji annotations
