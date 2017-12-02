@@ -7,11 +7,12 @@ import sys
 import numpy as np
 import pandas as pd
 
+from logging.handlers import RotatingFileHandler
 from sklearn.feature_extraction.text import CountVectorizer, TfidfTransformer
 from stat_parser import Parser
 
 # set up some simple logging
-handlers = [logging.RotatingFileHandler("bot.log", maxBytes=1E7),
+handlers = [RotatingFileHandler("bot.log", maxBytes=1E7),
             logging.StreamHandler()]
 logging.basicConfig(level=logging.INFO,
                     format='%(asctime)s %(message)s',
