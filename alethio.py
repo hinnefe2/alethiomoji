@@ -1,11 +1,13 @@
 #!/usr/bin/python
 
 import logging
+import os
 import sqlite3
 import sys
 
 import numpy as np
 import pandas as pd
+import psycopg2 as pg2
 
 from sklearn.feature_extraction.text import CountVectorizer, TfidfTransformer
 from stat_parser import Parser
@@ -13,7 +15,13 @@ from stat_parser import Parser
 LOGGER = logging.getLogger(__name__)
 
 # the sqlite database contains w2v encodings and emoji annotations
-CONN = sqlite3.connect('alethio.sqlite')
+# CONN = sqlite3.connect('alethio.sqlite')
+
+# connection for AWS RDS postgres database
+CONN = pg2.connect(dbname=os.getenv('PGDATABASE'),
+                   host=os.getenv('PGHOST'),
+                   password=os.getenv('PGPASSWORD'),
+                   user=os.getenv('PGUSER'))
 
 # each of these dataframes is indexed with unicode emoji characters
 EMOJI_ANNT = pd.read_sql('SELECT * FROM annotated', CONN, index_col='unicode')
