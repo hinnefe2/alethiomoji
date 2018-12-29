@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
-import json
-import time
+import datetime as dt
+import os
 import logging
 
 import twython
@@ -16,38 +16,20 @@ logger = logging.getLogger(__name__)
 
 def main():
 
-    with open('credentials.json') as f:
-            credentials = json.loads(f.read())
-
     client = twython.Twython(
-        credentials["consumer_key"],
-        credentials["consumer_secret"],
-        credentials["access_token_key"],
-        credentials["access_token_secret"])
+        os.getenv("twitter_consumer_key"),
+        os.getenv("twitter_consumer_secret"),
+        os.getenv("twitter_access_token_key"),
+        os.getenv("twitter_access_token_secret"))
 
-    latest_processed = credentials['latest_processed']
+    latest_processed = read_latest_processed()
 
-    logger.info("Entering 'while True' loop")
-    while True:
+    new_tweets = \
+        client.get_mentions_timeline(since_id=latest_processed)
 
-        try:
-            new_tweets = \
-                client.get_mentions_timeline(since_id=latest_processed)
-
-            for tweet in new_tweets:
-                latest_processed = process_tweet(client, tweet)
-
-            save_progress(credentials)
-            time.sleep(60)
-
-        except KeyboardInterrupt:
-            credentials['latest_processed'] = latest_processed
-            save_progress(credentials)
-            break
-
-        except Exception as e:
-            logging.exception(e)
-            time.sleep(60)
+    for tweet in new_tweets:
+        latest_processed = process_tweet(client, tweet)
+        record_processing(latest_processed)
 
 
 def process_tweet(client, tweet):
@@ -79,13 +61,21 @@ def send_response(client, user, id_str, answer):
     logger.info(status_message)
 
 
-def save_progress(credentials):
+def read_latest_processed(conn=alethio.CONN):
 
-    logger.debug('in save_progress')
+    sql = "SELECT tweet_id FROM processed ORDER BY processed_at DESC LIMIT 1"
 
-    with open('credentials.json', 'w') as f:
-            f.write(json.dumps(credentials))
+    with conn:
+        with conn.cursor() as curr:
+            latest_processed = curr.execute(sql).fetchone()
+
+    return latest_processed
 
 
-if __name__ == '__main__':
-    main()
+def record_processing(latest_processed, conn=alethio.CONN):
+
+    sql = "INSERT INTO processed(processed_at, tweet_id)  VALUES (%s, %s)"
+
+    with conn:
+        with conn.cursor() as curr:
+            curr.execute(sql, (dt.datetime.now(), latest_processed))
