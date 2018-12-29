@@ -8,14 +8,9 @@ import twython
 import alethio
 import tweet_utils
 
-from logging.handlers import RotatingFileHandler
-
 # set up some simple logging
-handlers = [RotatingFileHandler("bot.log", maxBytes=1E7),
-            logging.StreamHandler()]
 logging.basicConfig(level=logging.INFO,
-                    format='%(asctime)s [%(levelname)s] %(name)s: %(message)s',
-                    handlers=handlers)
+                    format='%(asctime)s [%(levelname)s] %(name)s: %(message)s')
 logger = logging.getLogger(__name__)
 
 
