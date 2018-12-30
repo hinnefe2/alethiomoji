@@ -2,7 +2,6 @@
 
 import logging
 import os
-import sqlite3
 import sys
 
 import numpy as np
@@ -13,9 +12,6 @@ from sklearn.feature_extraction.text import CountVectorizer, TfidfTransformer
 from stat_parser import Parser
 
 LOGGER = logging.getLogger(__name__)
-
-# the sqlite database contains w2v encodings and emoji annotations
-# CONN = sqlite3.connect('alethio.sqlite')
 
 # connection for AWS RDS postgres database
 CONN = pg2.connect(dbname=os.getenv('PGDATABASE'),

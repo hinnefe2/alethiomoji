@@ -47,6 +47,10 @@ def process_tweet(client, tweet):
     if answer is not None:
         logger.debug(' ... got answer')
         send_response(client, user, id_str, answer)
+    else:
+        answer = "Sorry, I couldn't understand your question"
+        logger.debug(' ... got None for answer')
+        send_response(client, user, id_str, answer)
 
     return id_str
 
