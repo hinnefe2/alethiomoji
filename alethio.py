@@ -8,7 +8,6 @@ import numpy as np
 import pandas as pd
 import psycopg2 as pg2
 
-from sklearn.feature_extraction.text import CountVectorizer, TfidfTransformer
 from stat_parser import Parser
 
 LOGGER = logging.getLogger(__name__)
@@ -98,11 +97,13 @@ def get_w2v_emoji_dist(word, n=3):
 def get_annot_emoji_dist(word):  # tfidf=count_tfidf, vectorizer=vectorizer):
     "Get the probability distribution over emoji for `word` using annotations"
 
-    vectorizer = CountVectorizer().fit(EMOJI_ANNT.annotation)
-    count_matrix = vectorizer.transform(EMOJI_ANNT.annotation)
+    raise UnknownWord
 
-    transformer = TfidfTransformer()
-    count_tfidf = transformer.fit_transform(count_matrix)
+    # vectorizer = CountVectorizer().fit(EMOJI_ANNT.annotation)
+    # count_matrix = vectorizer.transform(EMOJI_ANNT.annotation)
+
+    # transformer = TfidfTransformer()
+    # count_tfidf = transformer.fit_transform(count_matrix)
 
     # check if the given word is included in any of the annotations
     if word not in vectorizer.vocabulary_:
