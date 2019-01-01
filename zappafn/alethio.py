@@ -1,25 +1,44 @@
 #!/usr/bin/python
 
 import logging
-import sqlite3
+import os
 import sys
 
+import boto3
 import numpy as np
 import pandas as pd
 
-from sklearn.feature_extraction.text import CountVectorizer, TfidfTransformer
 from stat_parser import Parser
+from sqlalchemy import create_engine
 
-LOGGER = logging.getLogger(__name__)
 
-# the sqlite database contains w2v encodings and emoji annotations
-CONN = sqlite3.connect('alethio.sqlite')
+logger = logging.getLogger(__name__)
+s3 = boto3.resource('s3')
+
+# RDS was too expensive so download a sqlite3 db from s3
+# note that lambda functions sometimes share containers?
+# see https://forums.aws.amazon.com/thread.jspa?messageID=663677
+if not os.path.exists('/tmp/alethio.sqlite'):
+    logger.info('downloading sqlite db from s3')
+    s3.Bucket('zappa-uploads-owrhowohry').download_file('alethio.sqlite', '/tmp/alethio.sqlite')
+else:
+    logger.info('sqlite db already downloaded from s3 on this container')
+
+# connection for local sqlite database
+ENGINE = create_engine('sqlite:////tmp/alethio.sqlite')
+logger.info('success connecting to database: %s', ENGINE)
 
 # each of these dataframes is indexed with unicode emoji characters
-EMOJI_ANNT = pd.read_sql('SELECT * FROM annotated', CONN, index_col='unicode')
-EMOJI_ANSR = pd.read_sql('SELECT * FROM answers', CONN, index_col='unicode')
-EMOJI_VECS = (pd.read_sql('SELECT * FROM emoji_w2v', CONN, index_col='unicode')
+logger.info('loading emoji dataframes from database')
+EMOJI_ANNT = pd.read_sql('SELECT * FROM annotated', ENGINE, index_col='unicode')
+
+logger.info('done with EMOJI_ANNT')
+EMOJI_ANSR = pd.read_sql('SELECT * FROM answers', ENGINE, index_col='unicode')
+
+logger.info('done with EMOJI_ANSR')
+EMOJI_VECS = (pd.read_sql('SELECT * FROM emoji_w2v', ENGINE, index_col='unicode')
                 .apply(pd.to_numeric))
+logger.info('success loading emoji dataframes')
 
 
 class UnknownWord(ValueError):
@@ -27,21 +46,7 @@ class UnknownWord(ValueError):
     pass
 
 
-def _build_annotated_table(annot_file="annotations.csv"):
-    """Build the sqlite table 'annotated' using the provided file"""
-
-    annot_df = pd.read_csv(annot_file)
-    annot_df.to_sql('annotated', CONN, if_exists='replace')
-
-
-def _build_answer_table(answer_file="answers.csv"):
-    "Build the sqlite table 'answers' using the provided file"""
-
-    answer_df = pd.read_csv(answer_file)
-    answer_df.to_sql('answers', CONN, if_exists='replace')
-
-
-def get_word_vec(word, conn=CONN):
+def get_word_vec(word, conn=ENGINE):
     "Load the word2vec vector for the given word from the database"
 
     # first try exact word match (will be fast bc of index on 'word' column)
@@ -49,7 +54,7 @@ def get_word_vec(word, conn=CONN):
     vector_df = pd.read_sql(query, conn, index_col='word')
 
     if not vector_df.empty:
-        LOGGER.debug('found exact match in w2v')
+        logger.debug('found exact match in w2v')
         return vector_df.astype(float)
 
     # next try LIKE match, will be slow (~20s)
@@ -58,7 +63,7 @@ def get_word_vec(word, conn=CONN):
 
     if not vector_df.empty:
         # return the first one found, if multiple
-        LOGGER.debug('found LIKE  match in w2v')
+        logger.debug('found LIKE  match in w2v')
         return vector_df.head(1).astype(float)
 
     # finally, if nothing found raise an error
@@ -94,17 +99,19 @@ def get_w2v_emoji_dist(word, n=3):
 def get_annot_emoji_dist(word):  # tfidf=count_tfidf, vectorizer=vectorizer):
     "Get the probability distribution over emoji for `word` using annotations"
 
-    vectorizer = CountVectorizer().fit(EMOJI_ANNT.annotation)
-    count_matrix = vectorizer.transform(EMOJI_ANNT.annotation)
+    raise UnknownWord
 
-    transformer = TfidfTransformer()
-    count_tfidf = transformer.fit_transform(count_matrix)
+    # vectorizer = CountVectorizer().fit(EMOJI_ANNT.annotation)
+    # count_matrix = vectorizer.transform(EMOJI_ANNT.annotation)
+
+    # transformer = TfidfTransformer()
+    # count_tfidf = transformer.fit_transform(count_matrix)
 
     # check if the given word is included in any of the annotations
     if word not in vectorizer.vocabulary_:
         raise UnknownWord
     else:
-        LOGGER.debug('found match in annotations')
+        logger.debug('found match in annotations')
 
     # word must be in a list, otherwise vectorizer splits it into characters
     # instead of words
@@ -202,7 +209,7 @@ def generate_answer(question):
 
     # if the provided question isn't parsed as a question
     if 'Q' not in parse_tree.label():
-        LOGGER.debug('not a question')
+        logger.debug('not a question')
         return None
 
     # loop through the different types of words
@@ -210,20 +217,25 @@ def generate_answer(question):
 
         for word in get_words_by_tags(parse_tree, tag_type):
             try:
-                LOGGER.debug('trying to get emoji for {}'.format(word))
-                answer.append(get_emoji(word))
+                logger.debug('trying to get emoji for {}'.format(word))
+
+                emoji = get_emoji(word)
+                answer.append(emoji)
+
+                logger.debug('using {} for {}'.format(emoji, word))
+
             except UnknownWord:
                 pass
 
     # add an emoji that indicates some answer (yes/no/maybe/good/bad/etc)
-    LOGGER.debug('adding an answer emoji')
+    logger.debug('adding an answer emoji')
     answer.append(get_answer_emoji())
 
     # shuffle the order of the emojis
-    LOGGER.debug('shuffling the order')
+    logger.debug('shuffling the order')
     np.random.shuffle(answer)
 
-    LOGGER.debug('returning final response:')
+    logger.debug('returning final response:')
     return ' '.join(answer)
 
 

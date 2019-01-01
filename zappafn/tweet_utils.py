@@ -1,11 +1,23 @@
 # from https://gist.github.com/timothyrenner/dd487b9fd8081530509c
 
+import imp
+import string
+import sys
+
 from datetime import datetime
 
-import string
+# for running nltk on AWS lambda
+# see https://stackoverflow.com/questions/44058239/sqlite3-error-on-aws-lambda-with-python-3  # noqa
+sys.modules["sqlite"] = imp.new_module("sqlite")  # noqa
+sys.modules["sqlite3.dbapi2"] = imp.new_module("sqlite.dbapi2")  # noqa
 
+# NOTE: need to include downloaded stopwords, otherwise get error:
+# "module initialization error: module 'nltk' has no attribute 'data'"
+# see https://stackoverflow.com/questions/42382662/using-nltk-corpora-with-aws-lambda-functions-in-python/42389899  # noqa
 from nltk.stem.lancaster import LancasterStemmer
-from nltk.corpus import stopwords
+
+# manually extracted from downloaded nltk data
+from stopwords import STOPWORDS
 
 
 # Gets the tweet time.
@@ -79,7 +91,7 @@ def get_text_normalized(tweet):
     text = get_text_sanitized(tweet).split()
 
     # Remove the stop words.
-    text = [t for t in text if t not in stopwords.words('english')]
+    text = [t for t in text if t not in STOPWORDS]
 
     # Create the stemmer.
     stemmer = LancasterStemmer()
