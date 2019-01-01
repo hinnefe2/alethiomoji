@@ -1,0 +1,7 @@
+nltk==3.2.2
+pandas==0.19.2
+psycopg2-binary==2.7.6.1
+git+git://github.com/emilmont/pyStatParser@0e4990d7#egg=PyStatParser
+SQLAlchemy==1.2.15
+twython==3.4.0
+zappa==0.47.1
