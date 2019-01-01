@@ -1,0 +1,27 @@
+{
+    "dev": {
+        "app_function": "bot.main",
+        "aws_region": "us-east-1",
+        "profile_name": "default",
+        "project_name": "zappafn",
+        "runtime": "python3.6",
+        "s3_bucket": "zappa-uploads-owrhowohry",
+        "apigateway_enabled": false,
+
+        "environment_variables": {
+                        "PGDATABASE": "xxx",
+                        "PGHOST": "xxx",
+                        "PGUSER": "xxx",
+                        "PGPASSWORD": "xxx",
+                        "twitter_access_token_key": "xxx",
+                        "twitter_access_token_secret": "xxx",
+                        "twitter_consumer_key": "xxx",
+                        "twitter_consumer_secret": "xxx"
+        },
+
+        "events": [{
+            "function": "bot.main",
+            "expression": "rate(1 minute)"
+        }]
+    }
+}
