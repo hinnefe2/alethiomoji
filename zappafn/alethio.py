@@ -4,6 +4,7 @@ import logging
 import os
 import sys
 
+import boto3
 import numpy as np
 import pandas as pd
 
@@ -12,20 +13,23 @@ from sqlalchemy import create_engine
 
 
 logger = logging.getLogger(__name__)
+s3 = boto3.resource('s3')
 
-# connection for AWS RDS postgres database
-logger.info('trying to connect to postgres at %s', os.getenv('PGDATABASE'))
-ENGINE = create_engine(
-        'postgresql://{user}:{password}@{host}/{dbname}'.format(
-            dbname=os.getenv('PGDATABASE'),
-            host=os.getenv('PGHOST'),
-            password=os.getenv('PGPASSWORD'),
-            user=os.getenv('PGUSER')))
+# RDS was too expensive so download a sqlite3 db from s3
+# note that lambda functions sometimes share containers?
+# see https://forums.aws.amazon.com/thread.jspa?messageID=663677
+if not os.path.exists('/tmp/alethio.sqlite'):
+    logger.info('downloading sqlite db from s3')
+    s3.Bucket('zappa-uploads-owrhowohry').download_file('alethio.sqlite', '/tmp/alethio.sqlite')
+else:
+    logger.info('sqlite db already downloaded from s3 on this container')
 
-logger.info('success connecting to postgres: %s', ENGINE)
+# connection for local sqlite database
+ENGINE = create_engine('sqlite:////tmp/alethio.sqlite')
+logger.info('success connecting to database: %s', ENGINE)
 
 # each of these dataframes is indexed with unicode emoji characters
-logger.info('loading emoji dataframes from postgres')
+logger.info('loading emoji dataframes from database')
 EMOJI_ANNT = pd.read_sql('SELECT * FROM annotated', ENGINE, index_col='unicode')
 
 logger.info('done with EMOJI_ANNT')

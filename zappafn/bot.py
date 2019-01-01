@@ -4,10 +4,14 @@ import datetime as dt
 import os
 import logging
 
+import awslogging
+import boto3
 import twython
 import alethio
 import tweet_utils
 
+
+s3 = boto3.resource('s3')
 
 logger = logging.getLogger(__name__)
 
@@ -21,8 +25,8 @@ def main(json_input, context):
         os.getenv("twitter_access_token_key"),
         os.getenv("twitter_access_token_secret"))
 
-    logger.info('reading latest processed from postgres')
-    latest_processed = read_latest_processed()
+    logger.info('reading latest processed from s3')
+    latest_processed = read_latest_processed(s3)
     logger.info('latest: %s', latest_processed)
 
     logger.info('getting latest tweets')
@@ -32,7 +36,8 @@ def main(json_input, context):
     logger.info('processing {} tweets'.format(len(new_tweets)))
     for tweet in new_tweets:
         latest_processed = process_tweet(client, tweet)
-        record_processing(latest_processed)
+        record_latest_processed(latest_processed, s3)
+        logger.info('processed {}'.format(latest_processed))
 
 
 def process_tweet(client, tweet):
@@ -62,28 +67,32 @@ def send_response(client, user, id_str, answer):
 
     logger.debug('in send_response')
 
-    status_message = ".@" + user + " " + answer
+    status_message = "@" + user + " " + answer
 
     client.update_status(status=status_message, in_reply_to_status_id=id_str)
     logger.info(status_message)
 
 
-def read_latest_processed(engine=alethio.ENGINE):
+def read_latest_processed(s3):
+    """Read filenames from s3 bucket as hacky db entries"""
 
-    sql = "SELECT tweet_id FROM processed ORDER BY processed_at DESC LIMIT 1"
+    # TODO: make this configurable
+    bucket = s3.Bucket('alethiomoji-processed-ids')
 
-    with engine.connect() as conn:
-        latest_processed = conn.execute(sql).fetchone()[0]
+    latest_processed = max([obj.key for obj in bucket.objects.all()])
 
     return latest_processed
 
 
-def record_processing(latest_processed, engine=alethio.ENGINE):
+def record_latest_processed(latest_processed, s3):
+    """Record filenames in s3 bucket as hacky db entries"""
 
-    sql = "INSERT INTO processed(processed_at, tweet_id)  VALUES (%s, %s)"
+    filename = f'/tmp/{latest_processed}'
 
-    with engine.connect() as conn:
-        conn.execute(sql, (dt.datetime.now(), latest_processed))
+    with open(filename, 'w') as outfile:
+        outfile.write(' ')
+
+    s3.meta.client.upload_file(filename, 'alethiomoji-processed-ids', latest_processed)
 
 
 if __name__ == '__main__':
