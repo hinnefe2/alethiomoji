@@ -28,14 +28,14 @@ else:
 ENGINE = create_engine('sqlite:////tmp/alethio.sqlite')
 logger.info('success connecting to database: %s', ENGINE)
 
-# each of these dataframes is indexed with unicode emoji characters
-logger.info('loading emoji dataframes from database')
-EMOJI_ANNT = pd.read_sql('SELECT * FROM annotated', ENGINE, index_col='unicode')
-
-logger.info('done with EMOJI_ANNT')
+# each of these dataframes is indexed with unicode emoji characters.
+# we load them into memory at the module level because that way they're shared
+# across invocations of the lambda entry-point function and we don't have to
+# reload them every time
+logger.info('loading answer emoji from database')
 EMOJI_ANSR = pd.read_sql('SELECT * FROM answers', ENGINE, index_col='unicode')
 
-logger.info('done with EMOJI_ANSR')
+logger.info('loading emoji w2v from database')
 EMOJI_VECS = (pd.read_sql('SELECT * FROM emoji_w2v', ENGINE, index_col='unicode')
                 .apply(pd.to_numeric))
 logger.info('success loading emoji dataframes')
