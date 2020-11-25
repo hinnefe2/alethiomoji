@@ -96,43 +96,6 @@ def get_w2v_emoji_dist(word, n=3):
         return pd.Series(name='prob')
 
 
-def get_annot_emoji_dist(word):  # tfidf=count_tfidf, vectorizer=vectorizer):
-    "Get the probability distribution over emoji for `word` using annotations"
-
-    raise UnknownWord
-
-    # vectorizer = CountVectorizer().fit(EMOJI_ANNT.annotation)
-    # count_matrix = vectorizer.transform(EMOJI_ANNT.annotation)
-
-    # transformer = TfidfTransformer()
-    # count_tfidf = transformer.fit_transform(count_matrix)
-
-    # check if the given word is included in any of the annotations
-    if word not in vectorizer.vocabulary_:
-        raise UnknownWord
-    else:
-        logger.debug('found match in annotations')
-
-    # word must be in a list, otherwise vectorizer splits it into characters
-    # instead of words
-    word_vector = vectorizer.transform([word])
-
-    # calculate cosine similarity of the word vector with each emoji's
-    # annotation vector
-    cos_sim = count_tfidf.dot(word_vector.transpose())
-
-    # reshape to 1d array
-    cos_sim = cos_sim.toarray().reshape(count_tfidf.shape[0],)
-
-    # normalization, assumes all cosine similarities are positive
-    if sum(cos_sim) != 0:
-        norm_dist = cos_sim / sum(cos_sim)
-    else:
-        norm_dist = cos_sim
-
-    return pd.Series(data=norm_dist, index=EMOJI_ANNT.index, name='prob')
-
-
 def sample_from_dist(dist):
     """Randomly select an emoji according a given probability distribution.
 
@@ -158,14 +121,7 @@ def sample_from_dist(dist):
 def get_emoji(word):
     """Try to get an emoji relevant to the supplied word"""
 
-    # first try to sample from the annotated data if possible
-    try:
-        emoji_dist = get_annot_emoji_dist(word)
-        return sample_from_dist(emoji_dist)
-    except UnknownWord:
-        pass
-
-    # next try to sample from the word2vec data if possible
+    # try to sample from the word2vec data if possible
     try:
         emoji_dist = get_w2v_emoji_dist(word)
         return sample_from_dist(emoji_dist)
