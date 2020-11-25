@@ -53,7 +53,23 @@ def _softmax(arr):
 
 
 def get_word_vec(word, conn=ENGINE):
-    "Load the word2vec vector for the given word from the database"
+    """Load the word2vec vector for the given word from the database
+
+    Parameters
+    ----------
+    word: str
+        A word to find word2vec representation for.
+
+    Returns
+    -------
+    pd.DataFrame
+        A dataframe containing the word2vec representation of the given word
+
+    Raises
+    ------
+    UnknownWord
+        If the given word doesn't have a known word2vec representation
+    """
 
     # first try exact word match (will be fast bc of index on 'word' column)
     query = "SELECT * FROM words_w2v WHERE word = '{}'".format(word)
@@ -77,7 +93,24 @@ def get_word_vec(word, conn=ENGINE):
 
 
 def get_w2v_emoji_dist(word_vec, n=3):
-    "Get the probability distribution over emoji for `word` using word2vec."
+    """Get the probability distribution over emoji for a word's word2vec
+    representation.
+
+    Probability values are the softmax'd cosine similarities between the word's
+    word2vec representation and the word2vec representation of each emoji.
+
+    Parameters
+    ----------
+    word_vec: pd.DataFrame
+        A dataframe containing word2vec values for a word to be associated with
+        an emoji.
+
+    Returns
+    -------
+    pd.Series
+        A series, indexed by emoji unicode values, containing a probability
+        distribution over emoji related to the input word2vec vector.
+    """
 
     # take the dot product of each emoji's w2v vector with the vector for
     # the given word, then convert to a pd.Series (the .iloc business) for
@@ -103,7 +136,8 @@ def sample_from_dist(dist):
     Returns
     -------
     str
-        Unicode value for the selected emoji
+        Unicode value for the an emoji sampled according to the input
+        probability distribution.
     """
 
     return np.random.choice(dist.index.values, p=dist.values)
