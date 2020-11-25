@@ -46,6 +46,12 @@ class UnknownWord(ValueError):
     pass
 
 
+def _softmax(arr):
+    """Compute the softmax of the input"""
+    e_x = np.exp(x - np.max(x))
+    return e_x / e_x.sum(axis=0)
+
+
 def get_word_vec(word, conn=ENGINE):
     "Load the word2vec vector for the given word from the database"
 
@@ -83,9 +89,8 @@ def get_w2v_emoji_dist(word, n=3):
 
         top_n = cos_sim.sort_values(ascending=False).head(n)
 
-        # shift up so that all values are >= 0, then normalize
-        top_n = (top_n + min(top_n))**2
-        top_n = top_n / sum(top_n)
+        # convert the cosine similarities into a probability distribution
+        top_n = _softmax(top_n)
 
         return pd.Series(data=top_n, index=top_n.index, name='prob')
 
