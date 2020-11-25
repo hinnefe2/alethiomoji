@@ -46,7 +46,7 @@ class UnknownWord(ValueError):
     pass
 
 
-def _softmax(arr):
+def _softmax(x):
     """Compute the softmax of the input"""
     e_x = np.exp(x - np.max(x))
     return e_x / e_x.sum(axis=0)
@@ -76,7 +76,8 @@ def get_word_vec(word, conn=ENGINE):
     vector_df = pd.read_sql(query, conn, index_col='word')
 
     if not vector_df.empty:
-        logger.debug('found exact match in w2v')
+        logger.debug(
+            f'found exact match for query {word} in w2v')
         return vector_df.astype(float)
 
     # next try LIKE match, will be slow (~20s)
@@ -92,7 +93,7 @@ def get_word_vec(word, conn=ENGINE):
     raise UnknownWord
 
 
-def get_w2v_emoji_dist(word_vec, n=3):
+def get_w2v_emoji_dist(word_vec, n=5):
     """Get the probability distribution over emoji for a word's word2vec
     representation.
 
