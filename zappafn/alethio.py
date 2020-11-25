@@ -28,14 +28,14 @@ else:
 ENGINE = create_engine('sqlite:////tmp/alethio.sqlite')
 logger.info('success connecting to database: %s', ENGINE)
 
-# each of these dataframes is indexed with unicode emoji characters
-logger.info('loading emoji dataframes from database')
-EMOJI_ANNT = pd.read_sql('SELECT * FROM annotated', ENGINE, index_col='unicode')
-
-logger.info('done with EMOJI_ANNT')
+# each of these dataframes is indexed with unicode emoji characters.
+# we load them into memory at the module level because that way they're shared
+# across invocations of the lambda entry-point function and we don't have to
+# reload them every time
+logger.info('loading answer emoji from database')
 EMOJI_ANSR = pd.read_sql('SELECT * FROM answers', ENGINE, index_col='unicode')
 
-logger.info('done with EMOJI_ANSR')
+logger.info('loading emoji w2v from database')
 EMOJI_VECS = (pd.read_sql('SELECT * FROM emoji_w2v', ENGINE, index_col='unicode')
                 .apply(pd.to_numeric))
 logger.info('success loading emoji dataframes')
@@ -46,15 +46,38 @@ class UnknownWord(ValueError):
     pass
 
 
+def _softmax(x):
+    """Compute the softmax of the input"""
+    e_x = np.exp(x - np.max(x))
+    return e_x / e_x.sum(axis=0)
+
+
 def get_word_vec(word, conn=ENGINE):
-    "Load the word2vec vector for the given word from the database"
+    """Load the word2vec vector for the given word from the database
+
+    Parameters
+    ----------
+    word: str
+        A word to find word2vec representation for.
+
+    Returns
+    -------
+    pd.DataFrame
+        A dataframe containing the word2vec representation of the given word
+
+    Raises
+    ------
+    UnknownWord
+        If the given word doesn't have a known word2vec representation
+    """
 
     # first try exact word match (will be fast bc of index on 'word' column)
     query = "SELECT * FROM words_w2v WHERE word = '{}'".format(word)
     vector_df = pd.read_sql(query, conn, index_col='word')
 
     if not vector_df.empty:
-        logger.debug('found exact match in w2v')
+        logger.debug(
+            f'found exact match for query {word} in w2v')
         return vector_df.astype(float)
 
     # next try LIKE match, will be slow (~20s)
@@ -70,67 +93,37 @@ def get_word_vec(word, conn=ENGINE):
     raise UnknownWord
 
 
-def get_w2v_emoji_dist(word, n=3):
-    "Get the probability distribution over emoji for `word` using word2vec."
+def get_w2v_emoji_dist(word_vec, n=5):
+    """Get the probability distribution over emoji for a word's word2vec
+    representation.
 
-    try:
-        word_vec = get_word_vec(word)
+    Probability values are the softmax'd cosine similarities between the word's
+    word2vec representation and the word2vec representation of each emoji.
 
-        # take the dot product of each emoji's w2v vector with the vector for
-        # the given word, then convert to a pd.Series (the .iloc business) for
-        # sorting
-        cos_sim = EMOJI_VECS.dot(word_vec.transpose()).iloc[:, 0]
+    Parameters
+    ----------
+    word_vec: pd.DataFrame
+        A dataframe containing word2vec values for a word to be associated with
+        an emoji.
 
-        top_n = cos_sim.sort_values(ascending=False).head(n)
+    Returns
+    -------
+    pd.Series
+        A series, indexed by emoji unicode values, containing a probability
+        distribution over emoji related to the input word2vec vector.
+    """
 
-        # shift up so that all values are >= 0, then normalize
-        top_n = (top_n + min(top_n))**2
-        top_n = top_n / sum(top_n)
+    # take the dot product of each emoji's w2v vector with the vector for
+    # the given word, then convert to a pd.Series (the .iloc business) for
+    # sorting
+    cos_sim = EMOJI_VECS.dot(word_vec.transpose()).iloc[:, 0]
 
-        return pd.Series(data=top_n, index=top_n.index, name='prob')
+    top_n = cos_sim.sort_values(ascending=False).head(n)
 
-    except UnknownWord:
+    # convert the cosine similarities into a probability distribution
+    top_n = _softmax(top_n)
 
-        # return an empty series if we don't have word2vec vectors for the
-        # input word
-        return pd.Series(name='prob')
-
-
-def get_annot_emoji_dist(word):  # tfidf=count_tfidf, vectorizer=vectorizer):
-    "Get the probability distribution over emoji for `word` using annotations"
-
-    raise UnknownWord
-
-    # vectorizer = CountVectorizer().fit(EMOJI_ANNT.annotation)
-    # count_matrix = vectorizer.transform(EMOJI_ANNT.annotation)
-
-    # transformer = TfidfTransformer()
-    # count_tfidf = transformer.fit_transform(count_matrix)
-
-    # check if the given word is included in any of the annotations
-    if word not in vectorizer.vocabulary_:
-        raise UnknownWord
-    else:
-        logger.debug('found match in annotations')
-
-    # word must be in a list, otherwise vectorizer splits it into characters
-    # instead of words
-    word_vector = vectorizer.transform([word])
-
-    # calculate cosine similarity of the word vector with each emoji's
-    # annotation vector
-    cos_sim = count_tfidf.dot(word_vector.transpose())
-
-    # reshape to 1d array
-    cos_sim = cos_sim.toarray().reshape(count_tfidf.shape[0],)
-
-    # normalization, assumes all cosine similarities are positive
-    if sum(cos_sim) != 0:
-        norm_dist = cos_sim / sum(cos_sim)
-    else:
-        norm_dist = cos_sim
-
-    return pd.Series(data=norm_dist, index=EMOJI_ANNT.index, name='prob')
+    return pd.Series(data=top_n, index=top_n.index, name='prob')
 
 
 def sample_from_dist(dist):
@@ -144,36 +137,33 @@ def sample_from_dist(dist):
     Returns
     -------
     str
-        Unicode value for the selected emoji
+        Unicode value for the an emoji sampled according to the input
+        probability distribution.
     """
 
-    if any(dist):
-        # assumes the dist is a pd.Series of probabilities indexed by the
-        # unicode for each emoji
-        return np.random.choice(dist.index.values, p=dist.values)
-    else:
-        raise UnknownWord
+    return np.random.choice(dist.index.values, p=dist.values)
 
 
 def get_emoji(word):
-    """Try to get an emoji relevant to the supplied word"""
+    """Try to get an emoji relevant to the supplied word
 
-    # first try to sample from the annotated data if possible
-    try:
-        emoji_dist = get_annot_emoji_dist(word)
-        return sample_from_dist(emoji_dist)
-    except UnknownWord:
-        pass
+    Parameters
+    ----------
+    word: str
+        A word to retrieve an emoji for
 
-    # next try to sample from the word2vec data if possible
-    try:
-        emoji_dist = get_w2v_emoji_dist(word)
-        return sample_from_dist(emoji_dist)
-    except UnknownWord:
-        pass
+    Returns
+    -------
+    str
+        Unicode value for the selected emoji
 
-    # finally raise an exception if neither option worked
-    raise UnknownWord
+    Raises
+    ------
+    UnknownWord
+        If the given word can't be associated with an emoji
+    """
+
+    return sample_from_dist(get_w2v_emoji_dist(get_word_vec(word)))
 
 
 def get_answer_emoji(emoji_answer=EMOJI_ANSR):
