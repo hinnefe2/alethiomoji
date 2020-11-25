@@ -79,26 +79,19 @@ def get_word_vec(word, conn=ENGINE):
 def get_w2v_emoji_dist(word, n=3):
     "Get the probability distribution over emoji for `word` using word2vec."
 
-    try:
-        word_vec = get_word_vec(word)
+    word_vec = get_word_vec(word)
 
-        # take the dot product of each emoji's w2v vector with the vector for
-        # the given word, then convert to a pd.Series (the .iloc business) for
-        # sorting
-        cos_sim = EMOJI_VECS.dot(word_vec.transpose()).iloc[:, 0]
+    # take the dot product of each emoji's w2v vector with the vector for
+    # the given word, then convert to a pd.Series (the .iloc business) for
+    # sorting
+    cos_sim = EMOJI_VECS.dot(word_vec.transpose()).iloc[:, 0]
 
-        top_n = cos_sim.sort_values(ascending=False).head(n)
+    top_n = cos_sim.sort_values(ascending=False).head(n)
 
-        # convert the cosine similarities into a probability distribution
-        top_n = _softmax(top_n)
+    # convert the cosine similarities into a probability distribution
+    top_n = _softmax(top_n)
 
-        return pd.Series(data=top_n, index=top_n.index, name='prob')
-
-    except UnknownWord:
-
-        # return an empty series if we don't have word2vec vectors for the
-        # input word
-        return pd.Series(name='prob')
+    return pd.Series(data=top_n, index=top_n.index, name='prob')
 
 
 def sample_from_dist(dist):
@@ -115,12 +108,7 @@ def sample_from_dist(dist):
         Unicode value for the selected emoji
     """
 
-    if any(dist):
-        # assumes the dist is a pd.Series of probabilities indexed by the
-        # unicode for each emoji
-        return np.random.choice(dist.index.values, p=dist.values)
-    else:
-        raise UnknownWord
+    return np.random.choice(dist.index.values, p=dist.values)
 
 
 def get_emoji(word):
