@@ -76,10 +76,8 @@ def get_word_vec(word, conn=ENGINE):
     raise UnknownWord
 
 
-def get_w2v_emoji_dist(word, n=3):
+def get_w2v_emoji_dist(word_vec, n=3):
     "Get the probability distribution over emoji for `word` using word2vec."
-
-    word_vec = get_word_vec(word)
 
     # take the dot product of each emoji's w2v vector with the vector for
     # the given word, then convert to a pd.Series (the .iloc business) for
@@ -130,7 +128,7 @@ def get_emoji(word):
         If the given word can't be associated with an emoji
     """
 
-    return sample_from_dist(get_w2v_emoji_dist(word))
+    return sample_from_dist(get_w2v_emoji_dist(get_word_vec(word)))
 
 
 def get_answer_emoji(emoji_answer=EMOJI_ANSR):
