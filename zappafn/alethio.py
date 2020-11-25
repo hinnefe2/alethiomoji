@@ -119,17 +119,25 @@ def sample_from_dist(dist):
 
 
 def get_emoji(word):
-    """Try to get an emoji relevant to the supplied word"""
+    """Try to get an emoji relevant to the supplied word
 
-    # try to sample from the word2vec data if possible
-    try:
-        emoji_dist = get_w2v_emoji_dist(word)
-        return sample_from_dist(emoji_dist)
-    except UnknownWord:
-        pass
+    Parameters
+    ----------
+    word: str
+        A word to retrieve an emoji for
 
-    # finally raise an exception if neither option worked
-    raise UnknownWord
+    Returns
+    -------
+    str
+        Unicode value for the selected emoji
+
+    Raises
+    ------
+    UnknownWord
+        If the given word can't be associated with an emoji
+    """
+
+    return sample_from_dist(get_w2v_emoji_dist(word))
 
 
 def get_answer_emoji(emoji_answer=EMOJI_ANSR):
